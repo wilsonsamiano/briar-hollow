@@ -297,7 +297,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: GameState, rt: Runtime, d
       shadow(ctx, s.x, s.y, 7, 3);
       const blink = rt.iframes > 0 && Math.floor(rt.iframes * 16) % 2 === 0;
       if (!blink) {
-        const ok = blit(ctx, art.player, pFrame, s.x - 12, s.y - 30, 24, 32);
+        const ok = blit(ctx, art.player, pFrame, s.x - 12, s.y - 30, 24, 32, s.dir === 2);
         if (!ok) {
           ctx.fillStyle = "#f4e7c8";
           ctx.fillRect(s.x - 5, s.y - 20, 10, 12);

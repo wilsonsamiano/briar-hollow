@@ -12,3 +12,6 @@ android/.gradle
 android/app/build
 android/app/src/main/assets
 .DS_Store
+desktop/node_modules
+desktop/dist
+desktop/www

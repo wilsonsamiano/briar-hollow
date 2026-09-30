@@ -1,0 +1,70 @@
+{
+  "name": "briar-hollow",
+  "productName": "Briar Hollow",
+  "version": "0.1.2-beta",
+  "private": true,
+  "desktopName": "briar-hollow.desktop",
+  "description": "A quiet fen farm.",
+  "author": "Wilson Samiano",
+  "license": "MIT",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --linux --x64 && electron-builder --win --x64 && electron-builder --mac --x64 --arm64"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "dev.wilsonsamiano.briarhollow",
+    "productName": "Briar Hollow",
+    "executableName": "briar-hollow",
+    "asar": true,
+    "compression": "normal",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.cjs",
+      "serve.cjs",
+      "package.json",
+      "icons/icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "www",
+        "to": "www"
+      }
+    ],
+    "linux": {
+      "artifactName": "briar-hollow-0.1.2-beta-linux-x64.${ext}",
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "tar.gz", "arch": ["x64"] }
+      ],
+      "category": "Game",
+      "synopsis": "A quiet fen farm.",
+      "icon": "icons/icon.png",
+      "syncDesktopName": true
+    },
+    "win": {
+      "artifactName": "briar-hollow-0.1.2-beta-win-${arch}.${ext}",
+      "target": [
+        { "target": "zip", "arch": ["x64"] }
+      ],
+      "icon": "icons/icon.ico"
+    },
+    "mac": {
+      "artifactName": "briar-hollow-0.1.2-beta-mac-${arch}.${ext}",
+      "target": [
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "icons/icon.icns",
+      "identity": null,
+      "gatekeeperAssess": false,
+      "hardenedRuntime": false,
+      "category": "public.app-category.games"
+    }
+  }
+}

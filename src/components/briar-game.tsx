@@ -195,8 +195,32 @@ function Portrait({ id }: { id: NpcId }) {
 }
 
 const COFFEE_URL = "https://buymeacoffee.com/wilsonsamiano";
-const APK_URL =
-  "https://github.com/wilsonsamiano/briar-hollow/releases/download/v0.1.1-beta/briar-hollow-0.1.1-beta.apk";
+const RELEASE = "https://github.com/wilsonsamiano/briar-hollow/releases/download/v0.1.2-beta";
+const RELEASE_PAGE = "https://github.com/wilsonsamiano/briar-hollow/releases/tag/v0.1.2-beta";
+const DOWNLOADS = [
+  { href: `${RELEASE}/briar-hollow-0.1.2-beta.apk`, label: "Android" },
+  { href: `${RELEASE}/briar-hollow-0.1.2-beta-win-x64.zip`, label: "Windows" },
+  { href: `${RELEASE}/briar-hollow-0.1.2-beta-mac-arm64.zip`, label: "Mac" },
+  { href: `${RELEASE}/briar-hollow-0.1.2-beta-mac-x64.zip`, label: "Mac Intel" },
+  { href: `${RELEASE}/briar-hollow-0.1.2-beta-linux-x64.AppImage`, label: "Linux" },
+];
+
+function BetaLinks({ edge = false }: { edge?: boolean }) {
+  return (
+    <div className={edge ? "mt-4 border-t-2 border-line pt-4" : "mt-4"}>
+      <div className="flex flex-wrap gap-2">
+        <Ext href={COFFEE_URL} tone="honey">Buy me a coffee</Ext>
+        {DOWNLOADS.map((item) => (
+          <Ext key={item.href} href={item.href}>{item.label}</Ext>
+        ))}
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-muted">
+        Android sideloads. Windows: unzip and open Briar Hollow; if it warns you, choose More info, then Run anyway. Mac: unzip, then right-click the app and choose Open (use Mac Intel only on an older Intel Mac). Linux: open the AppImage.{" "}
+        <a href={RELEASE_PAGE} target="_blank" rel="noreferrer" className="font-bold text-moss underline">Release page</a>
+      </p>
+    </div>
+  );
+}
 
 function Btn({
   children,
@@ -771,10 +795,7 @@ export function BriarGame() {
                     <Btn tone="ghost" onClick={() => setConfirmErase(true)}>Erase save</Btn>
                   )}
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Ext href={COFFEE_URL} tone="honey">Buy me a coffee</Ext>
-                  <Ext href={APK_URL}>Android beta</Ext>
-                </div>
+                <BetaLinks />
                 <input
                   ref={fileRef}
                   type="file"
@@ -856,13 +877,7 @@ export function BriarGame() {
                   Move with WASD, arrows, the left stick, or the pad. A or Use works the tool in your hands. X or Talk speaks. B steps back out of a menu and cancels a fishing cast. Bumpers swap tools. Start pauses. Seeds must be selected from the pack before they plant. Sleep in the cottage to end the day. East is the woods, south is town, west of town is the mine.
                 </p>
               </details>
-              <div className="mt-4 flex flex-wrap gap-2 border-t-2 border-line pt-4">
-                <Ext href={COFFEE_URL} tone="honey">Buy me a coffee</Ext>
-                <Ext href={APK_URL}>Android beta</Ext>
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-muted">
-                The beta APK sideloads on Android. Download it, open the file, and allow install from your browser if the phone asks.
-              </p>
+              <BetaLinks edge />
             </form>
           </div>
         </div>

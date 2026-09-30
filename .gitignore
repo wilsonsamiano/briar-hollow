@@ -1,0 +1,14 @@
+node_modules
+.vercel
+dist
+.output
+screenshots
+artifacts
+.grok
+*.log
+*.apk
+android/local.properties
+android/.gradle
+android/app/build
+android/app/src/main/assets
+.DS_Store

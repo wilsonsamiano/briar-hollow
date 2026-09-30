@@ -1,0 +1,44 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "dev.wilsonsamiano.briarhollow"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "dev.wilsonsamiano.briarhollow"
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName "0.1.0-beta"
+    }
+
+    signingConfigs {
+        beta {
+            storeFile file("${rootDir}/briar-hollow-beta.keystore")
+            storePassword "briarhollow-beta"
+            keyAlias "briar"
+            keyPassword "briarhollow-beta"
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.beta
+            minifyEnabled false
+        }
+        debug {
+            signingConfig signingConfigs.beta
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.webkit:webkit:1.12.1"
+}

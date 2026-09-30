@@ -51,7 +51,7 @@ import {
   unship,
   upgradeTools,
 } from "@/game/engine";
-import { attachInput, pad, pushClick, readInput, setProbeKeys } from "@/game/input";
+import { attachInput, gamepadConnected, gamepadLabel, pad, pushClick, quietFrame, readInput, setProbeKeys, steerMenu, type InputFrame } from "@/game/input";
 import { downloadSave, eraseSave, hasSave, loadRaw, normalize, saveGame } from "@/game/save";
 import { loadSettings, musicTick, persistSettings, resumeAudio, settings, sfx, unlockAudio } from "@/game/sound";
 
@@ -84,6 +84,7 @@ interface Snap {
   season: number;
   stats: GameState["stats"];
   minutes: number;
+  padName: string;
 }
 
 const emptySnap: Snap = {
@@ -115,6 +116,7 @@ const emptySnap: Snap = {
   season: 0,
   stats: { harvests: 0, fish: 0, earned: 0 },
   minutes: 0,
+  padName: "",
 };
 
 function takeSnap(s: GameState, rt: Runtime): Snap {
@@ -147,6 +149,7 @@ function takeSnap(s: GameState, rt: Runtime): Snap {
     season: s.season,
     stats: { ...s.stats },
     minutes: s.minutes,
+    padName: gamepadLabel(),
   };
 }
 
@@ -193,7 +196,7 @@ function Portrait({ id }: { id: NpcId }) {
 
 const COFFEE_URL = "https://buymeacoffee.com/wilsonsamiano";
 const APK_URL =
-  "https://github.com/wilsonsamiano/briar-hollow/releases/download/v0.1.0-beta/briar-hollow-0.1.0-beta.apk";
+  "https://github.com/wilsonsamiano/briar-hollow/releases/download/v0.1.1-beta/briar-hollow-0.1.1-beta.apk";
 
 function Btn({
   children,
@@ -201,20 +204,26 @@ function Btn({
   tone = "moss",
   disabled,
   type = "button",
+  id,
+  primary,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   tone?: "moss" | "honey" | "ghost";
   disabled?: boolean;
   type?: "button" | "submit";
+  id?: string;
+  primary?: boolean;
 }) {
   const toneCls =
     tone === "honey" ? "bg-honey text-ink" : tone === "ghost" ? "bg-parchment-deep text-ink" : "bg-moss text-cream";
   return (
     <button
+      id={id}
       type={type}
       disabled={disabled}
       onClick={onClick}
+      data-pad-primary={primary ? "" : undefined}
       className={`min-h-12 rounded-full px-4 py-2 text-base font-bold ${toneCls} disabled:opacity-40`}
     >
       {children}
@@ -273,6 +282,8 @@ export function BriarGame() {
   const [music, setMusic] = useState(0.45);
   const [sfxVol, setSfxVol] = useState(0.7);
   const fileRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const dirs = useRef(new Set<string>());
 
   const sync = useCallback(() => {
@@ -287,7 +298,7 @@ export function BriarGame() {
       stateRef.current = s;
       const rt = freshRuntime();
       rt.reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      rt.toasts = [{ text: "WASD to move. Space uses a tool. E talks.", life: 6 }];
+      rt.toasts = [{ text: "WASD to move. Space uses a tool. E talks. A controller works too.", life: 6 }];
       rtRef.current = rt;
       modeRef.current = "play";
       setMode("play");
@@ -306,13 +317,41 @@ export function BriarGame() {
     setContinueOk(hasSave());
     setSaveReady(true);
     const detach = attachInput();
+    const clearRing = () => document.querySelectorAll(".pad-focus").forEach((n) => n.classList.remove("pad-focus"));
+    const onPointer = () => clearRing();
+    const onPad = () => {
+      if (modeRef.current !== "play") return;
+      toast(rtRef.current, "Controller on. A uses, X talks, B closes, Start pauses.");
+    };
+    window.addEventListener("pointerdown", onPointer);
+    window.addEventListener("gamepadconnected", onPad);
     let raf = 0;
     let last = performance.now();
     let acc = 0;
     let lastSync = 0;
+    const steerTitle = (input: InputFrame) => {
+      const form = formRef.current;
+      if (!form) return;
+      const active = document.activeElement;
+      const typing = active instanceof HTMLInputElement && active.id === "farmer-name";
+      if (!typing || input.navX || input.navY) steerMenu(form, { ...input, confirmEdge: false });
+      if (input.padInteractEdge) {
+        document.getElementById("continue-save")?.click();
+        return;
+      }
+      if (!input.confirmEdge) return;
+      const now = document.activeElement;
+      if (now instanceof HTMLButtonElement && form.contains(now)) now.click();
+      else if (now instanceof HTMLAnchorElement && form.contains(now)) now.click();
+      else if (now instanceof HTMLElement && now.tagName === "SUMMARY" && form.contains(now)) now.click();
+      else form.requestSubmit();
+    };
     const loop = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+      const input = readInput();
+      const wasTitle = modeRef.current === "title";
+      if (wasTitle) steerTitle(input);
       const canvas = canvasRef.current;
       const s = stateRef.current;
       const rt = rtRef.current;
@@ -327,32 +366,19 @@ export function BriarGame() {
         rt.cssW = cssW;
         rt.cssH = cssH;
         rt.zoom = cssW < 720 ? 2 : 3;
-        const input = readInput();
+        const live = wasTitle ? { ...quietFrame(input), useHeld: false } : input;
+        const panelBefore = rt.panel;
         acc += dt;
         let steps = 0;
         let first = true;
         while (acc >= 1 / 60 && steps < 4) {
-          tick(
-            s,
-            rt,
-            first
-              ? input
-              : {
-                  ...input,
-                  useEdge: false,
-                  interactEdge: false,
-                  bagEdge: false,
-                  journalEdge: false,
-                  pauseEdge: false,
-                  eatEdge: false,
-                  tool: null,
-                  click: null,
-                },
-            1 / 60,
-          );
+          tick(s, rt, first ? live : quietFrame(live), 1 / 60);
           first = false;
           acc -= 1 / 60;
           steps++;
+        }
+        if (rt.panel && rt.panel === panelBefore && rt.panel.t !== "fish" && panelRef.current) {
+          steerMenu(panelRef.current, live);
         }
         const ctx = canvas.getContext("2d");
         if (ctx && cssW > 2) draw(ctx, s, rt, dt);
@@ -390,10 +416,26 @@ export function BriarGame() {
     return () => {
       cancelAnimationFrame(raf);
       detach();
+      window.removeEventListener("pointerdown", onPointer);
+      window.removeEventListener("gamepadconnected", onPad);
       document.removeEventListener("visibilitychange", onVis);
       delete window.__controlsTest;
     };
   }, []);
+
+  const panel = snap.panel;
+  const panelKey =
+    panel && panel.t !== "fish"
+      ? `${panel.t}:${"page" in panel ? panel.page : ""}:${"tab" in panel ? panel.tab : ""}`
+      : "";
+  useEffect(() => {
+    if (!panelKey || !gamepadConnected()) return;
+    const primary = panelRef.current?.querySelector<HTMLElement>("[data-pad-primary]");
+    if (!primary) return;
+    document.querySelectorAll(".pad-focus").forEach((n) => n.classList.remove("pad-focus"));
+    primary.classList.add("pad-focus");
+    primary.focus();
+  }, [panelKey]);
 
   function run(fn: (s: GameState, rt: Runtime) => void) {
     const s = stateRef.current;
@@ -409,7 +451,6 @@ export function BriarGame() {
     pad.my = (dirs.current.has("d") ? 1 : 0) - (dirs.current.has("u") ? 1 : 0);
   }
 
-  const panel = snap.panel;
   const held = snap.sel.kind === "item" ? snap.inv[snap.sel.slot] : null;
   const fishLabel =
     snap.fishPhase === "bite" ? "Hook!" : snap.fishPhase === "play" ? "Hold to lift" : snap.fishPhase === "wait" ? "Waiting on a bite…" : snap.fishPhase === "caught" ? "Caught" : snap.fishPhase === "lost" ? "Lost it" : "Use";
@@ -481,7 +522,7 @@ export function BriarGame() {
                     <div className="h-full bg-moss" style={{ width: `${Math.round(snap.fishCatch * 100)}%` }} />
                   </div>
                 )}
-                <p className="text-xs text-muted">{snap.fishLabel}</p>
+                <p className="text-xs text-muted">{snap.fishLabel}{snap.padName ? " · A hooks, B cancels" : ""}</p>
               </div>
             )}
             <div className="pointer-events-auto flex justify-center gap-1 px-2">
@@ -556,13 +597,13 @@ export function BriarGame() {
 
       {mode === "play" && panel && panel.t !== "fish" && (
         <div className="absolute inset-0 z-20 flex items-end justify-center bg-ink/50 p-3 sm:items-center">
-          <section className="max-h-full w-full max-w-md overflow-y-auto rounded-panel border-2 border-line bg-parchment p-4 text-ink shadow-xl">
+          <section ref={panelRef} className="max-h-full w-full max-w-md overflow-y-auto rounded-panel border-2 border-line bg-parchment p-4 text-ink shadow-xl">
             {panel.t === "letter" && (
               <>
                 <h2 className="font-display text-2xl">From Aunt Bramble</h2>
                 <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed">{LETTER}</p>
                 <div className="mt-4 flex justify-end">
-                  <Btn onClick={() => run((s, rt) => { s.flags.letterRead = true; setPanel(rt, null); })}>Fold it away</Btn>
+                  <Btn primary onClick={() => run((s, rt) => { s.flags.letterRead = true; setPanel(rt, null); })}>Fold it away</Btn>
                 </div>
               </>
             )}
@@ -571,7 +612,7 @@ export function BriarGame() {
                 <h2 className="font-display text-2xl">Sleep until morning?</h2>
                 <p className="mt-2 text-muted">The day pauses. Shipping sells, crops grow, and you wake at six.</p>
                 <div className="mt-4 flex gap-2">
-                  <Btn onClick={() => run((s, rt) => sleep(s, rt, false))}>Sleep</Btn>
+                  <Btn primary onClick={() => run((s, rt) => sleep(s, rt, false))}>Sleep</Btn>
                   <Btn tone="ghost" onClick={() => run((s, rt) => setPanel(rt, null))}>Not yet</Btn>
                 </div>
               </>
@@ -586,7 +627,7 @@ export function BriarGame() {
                   ))}
                 </ul>
                 <div className="mt-4 flex justify-end">
-                  <Btn onClick={() => run((s, rt) => dismissSummary(rt))}>Wake up</Btn>
+                  <Btn primary onClick={() => run((s, rt) => dismissSummary(rt))}>Wake up</Btn>
                 </div>
               </>
             )}
@@ -597,7 +638,7 @@ export function BriarGame() {
                   Nia fitted the axle at dusk. Water takes the paddles, and the old mill in Hollow Cross breathes again. Each morning it leaves a packet of seed and a little gold.
                 </p>
                 <div className="mt-4 flex justify-end">
-                  <Btn onClick={() => run((s, rt) => dismissMill(s, rt))}>Listen to it</Btn>
+                  <Btn primary onClick={() => run((s, rt) => dismissMill(s, rt))}>Listen to it</Btn>
                 </div>
               </>
             )}
@@ -707,9 +748,10 @@ export function BriarGame() {
                   <button type="button" aria-label="Close" onClick={() => run((s, rt) => setPanel(rt, null))}><X /></button>
                 </div>
                 <p className="mt-2 text-sm leading-relaxed text-muted">
-                  WASD or the pad moves. Tap a nearby tile to use your tool, or a far tile to walk. Space uses the tool you selected. E talks, shops, fishes a conversation, and sleeps at the bed. 1–6 pick tools. Menus pause the clock. Pass out at 2 AM and you lose a little gold.
+                  WASD, arrows, or the left stick move. Tap a nearby tile to use a tool, or a far tile to walk. A or Space uses a tool. X or E talks. B closes menus and cancels a cast. Y opens the journal, the bumpers cycle tools, the left trigger eats held food, Select opens the pack, and Start pauses. Menus pause the clock. Pass out at 2 AM and you lose a little gold.
                 </p>
                 <p className="mt-2 text-sm tabular-nums">Harvests {snap.stats.harvests} · Fish {snap.stats.fish} · Earned {snap.stats.earned}g</p>
+                {snap.padName ? <p className="mt-1 text-sm text-moss">Controller connected · {snap.padName}</p> : null}
                 <label className="mt-3 block text-sm font-bold">
                   Music
                   <input className="mt-1 w-full" type="range" min={0} max={1} step={0.05} value={music} onChange={(e) => { const v = Number(e.target.value); settings.music = v; setMusic(v); persistSettings(); }} />
@@ -719,7 +761,7 @@ export function BriarGame() {
                   <input className="mt-1 w-full" type="range" min={0} max={1} step={0.05} value={sfxVol} onChange={(e) => { const v = Number(e.target.value); settings.sfx = v; setSfxVol(v); persistSettings(); sfx("talk"); }} />
                 </label>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Btn onClick={() => run((s, rt) => { saveGame(s); toast(rt, "Saved."); setPanel(rt, null); })}>Save</Btn>
+                  <Btn primary onClick={() => run((s, rt) => { saveGame(s); toast(rt, "Saved."); setPanel(rt, null); })}>Save</Btn>
                   <Btn tone="ghost" onClick={() => stateRef.current && downloadSave(stateRef.current)}>Export</Btn>
                   <Btn tone="ghost" onClick={() => fileRef.current?.click()}>Import</Btn>
                   <Btn tone="honey" onClick={() => { if (stateRef.current) saveGame(stateRef.current); modeRef.current = "title"; setMode("title"); }}>Title</Btn>
@@ -771,6 +813,7 @@ export function BriarGame() {
           <div className="absolute inset-0 bg-ink/45" />
           <div className="relative mx-auto flex min-h-full max-w-md flex-col justify-end p-4 sm:justify-center">
             <form
+              ref={formRef}
               className="rounded-panel border-2 border-line bg-parchment p-5 text-ink shadow-xl"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -793,9 +836,10 @@ export function BriarGame() {
                 />
               </label>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Btn type="submit">Start</Btn>
+                <Btn type="submit" primary>Start</Btn>
                 {saveReady && continueOk && (
                   <Btn
+                    id="continue-save"
                     tone="honey"
                     onClick={() => {
                       const next = normalize(loadRaw(), createNewGame(name.trim() || "Rowan"));
@@ -809,7 +853,7 @@ export function BriarGame() {
               <details className="mt-4">
                 <summary className="cursor-pointer font-bold">How to play</summary>
                 <p className="mt-2 text-sm leading-relaxed text-muted">
-                  Move with WASD, arrows, or the pad. The bottom row is your tools — hoe, can, axe, pick, scythe, rod. Face a tile and press Use. Seeds must be selected from the pack before they plant. Sleep in the cottage to end the day. East is the woods, south is town, west of town is the mine.
+                  Move with WASD, arrows, the left stick, or the pad. A or Use works the tool in your hands. X or Talk speaks. B steps back out of a menu and cancels a fishing cast. Bumpers swap tools. Start pauses. Seeds must be selected from the pack before they plant. Sleep in the cottage to end the day. East is the woods, south is town, west of town is the mine.
                 </p>
               </details>
               <div className="mt-4 flex flex-wrap gap-2 border-t-2 border-line pt-4">
@@ -856,22 +900,27 @@ function ShopPanel({
       </div>
       {tab === "buy" ? (
         <ul className="mt-3 space-y-2">
-          {goods.map((id) => {
-            const def = ITEMS[id];
-            const locked = def.season !== undefined && def.season !== snap.season;
-            return (
-              <li key={id} className="flex items-center gap-2">
-                <Icon frame={def.frame} />
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold">{def.name}</p>
-                  <p className="text-xs text-muted">{locked ? `Only in ${SEASONS[def.season ?? 0]}` : def.desc}</p>
-                </div>
-                <span className="tabular-nums text-sm font-bold">{def.buy}g</span>
-                <Btn disabled={locked} onClick={() => onBuy(id, 1)}>1</Btn>
-                <Btn disabled={locked} tone="ghost" onClick={() => onBuy(id, 5)}>5</Btn>
-              </li>
-            );
-          })}
+          {(() => {
+            let marked = false;
+            return goods.map((id) => {
+              const def = ITEMS[id];
+              const locked = def.season !== undefined && def.season !== snap.season;
+              const primary = !locked && !marked;
+              if (primary) marked = true;
+              return (
+                <li key={id} className="flex items-center gap-2">
+                  <Icon frame={def.frame} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold">{def.name}</p>
+                    <p className="text-xs text-muted">{locked ? `Only in ${SEASONS[def.season ?? 0]}` : def.desc}</p>
+                  </div>
+                  <span className="tabular-nums text-sm font-bold">{def.buy}g</span>
+                  <Btn primary={primary} disabled={locked} onClick={() => onBuy(id, 1)}>1</Btn>
+                  <Btn disabled={locked} tone="ghost" onClick={() => onBuy(id, 5)}>5</Btn>
+                </li>
+              );
+            });
+          })()}
           <li className="flex items-center justify-between gap-2 pt-2">
             <p className="text-sm">Chicken · 250g · {snap.chickens}/4</p>
             <Btn disabled={!snap.hasCoop || snap.chickens >= 4} onClick={onChicken}>Buy</Btn>
@@ -942,7 +991,7 @@ function Dialogue({
         </div>
         <button type="button" className="ml-auto" aria-label="Close" onClick={onClose}><X /></button>
       </div>
-      <button type="button" className="mt-3 w-full text-left text-base leading-relaxed" onClick={() => onAdvance(pages.length)}>
+      <button type="button" data-pad-primary="" className="mt-3 w-full text-left text-base leading-relaxed" onClick={() => onAdvance(pages.length)}>
         {pages[page] ?? ""}
       </button>
       {last && (

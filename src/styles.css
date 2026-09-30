@@ -44,7 +44,9 @@
   button:focus-visible,
   [role="button"]:focus-visible,
   input:focus-visible,
-  summary:focus-visible {
+  summary:focus-visible,
+  a:focus-visible,
+  .pad-focus {
     outline: 2px solid var(--color-honey);
     outline-offset: 2px;
   }

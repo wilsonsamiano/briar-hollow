@@ -23,12 +23,12 @@ The save stays on this device. The pause menu can export it.
 
 ## Android beta (sideload)
 
-The beta is not on the Play Store. Install the APK from the [v0.1.0-beta release](https://github.com/wilsonsamiano/briar-hollow/releases/tag/v0.1.0-beta).
+The beta is not on the Play Store. Install the APK from the [v0.1.1-beta release](https://github.com/wilsonsamiano/briar-hollow/releases/tag/v0.1.1-beta).
 
-1. On the phone, download `briar-hollow-0.1.0-beta.apk`.
+1. On the phone, download `briar-hollow-0.1.1-beta.apk`.
 2. Open the file.
 3. If Android blocks it, allow installs from that browser or Files app.
-4. Open **Briar Hollow**.
+4. Open **Briar Hollow**. A Bluetooth controller uses the usual layout: left stick to walk, A to use, X to talk, B to go back, Start to pause.
 
 The package id is `dev.wilsonsamiano.briarhollow`. Updates must be signed with the same beta key (`android/briar-hollow-beta.keystore`, alias `briar`, password `briarhollow-beta`). That key is only for this sideload beta.
 

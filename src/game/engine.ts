@@ -32,6 +32,7 @@ import {
   type Weather,
 } from "./data";
 import type { InputFrame } from "./input";
+import { rumble } from "./input";
 import { saveGame } from "./save";
 import { sfx } from "./sound";
 
@@ -999,6 +1000,7 @@ function updateFish(s: GameState, rt: Runtime, input: InputFrame, dt: number) {
     if (input.useEdge) {
       f.phase = "play";
       f.catch = 0.28;
+      rumble(28, 0.2, 0.15);
     } else if (f.timer <= 0) {
       f.phase = "lost";
       f.timer = 1;
@@ -1027,6 +1029,7 @@ function updateFish(s: GameState, rt: Runtime, input: InputFrame, dt: number) {
       s.stats.fish += 1;
       toast(rt, `Caught a ${f.label}.`);
       sfx("catch");
+      rumble(70, 0.45, 0.2);
     } else if (f.catch <= 0 && !f.resolved) {
       f.resolved = true;
       f.phase = "lost";
@@ -1165,6 +1168,12 @@ export function tick(s: GameState, rt: Runtime, input: InputFrame, dt: number) {
     return;
   }
   if (rt.fish) {
+    if (input.cancelEdge) {
+      rt.fish = null;
+      if (rt.panel?.t === "fish") rt.panel = null;
+      toast(rt, "Line pulled in.");
+      return;
+    }
     updateFish(s, rt, input, dt);
     return;
   }
@@ -1176,9 +1185,18 @@ export function tick(s: GameState, rt: Runtime, input: InputFrame, dt: number) {
     if (!rt.panel) rt.panel = { t: "pause" };
     else if (rt.panel.t !== "summary" && rt.panel.t !== "mill") rt.panel = null;
   }
+  if (input.cancelEdge && rt.panel) {
+    if (rt.panel.t === "summary") dismissSummary(rt);
+    else if (rt.panel.t !== "mill") rt.panel = null;
+  }
   if (input.bagEdge) rt.panel = rt.panel?.t === "inventory" ? null : { t: "inventory" };
   if (input.journalEdge) rt.panel = rt.panel?.t === "quests" ? null : { t: "quests" };
   if (input.tool !== null) s.sel = { kind: "tool", tool: TOOLS[input.tool] ?? "hoe" };
+  if (!rt.panel && input.toolDelta) {
+    const cur = s.sel.kind === "tool" ? TOOLS.indexOf(s.sel.tool) : 0;
+    const next = (Math.max(0, cur) + input.toolDelta + TOOLS.length) % TOOLS.length;
+    s.sel = { kind: "tool", tool: TOOLS[next] ?? "hoe" };
+  }
   if (rt.panel) return;
 
   if (input.click) handleClick(s, rt, input.click.x, input.click.y);
@@ -1271,7 +1289,7 @@ export function eatIndex(s: GameState, rt: Runtime, index: number) {
 
 function eatHeld(s: GameState, rt: Runtime) {
   if (s.sel.kind !== "item") {
-    toast(rt, "Hold a food from your pack, then press F.");
+    toast(rt, "Hold a food from your pack, then press F or the left trigger.");
     return;
   }
   eatIndex(s, rt, s.sel.slot);
